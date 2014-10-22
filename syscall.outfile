@@ -1,0 +1,7 @@
+# 1 "syscall_macro.c"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "syscall_macro.c"
+# 93 "syscall_macro.c"
+static const char *types__socket[] = { "int", "int", "int" }; static const char *args__socket[] = { "family", "type", "protocol" }; static const struct syscall_metadata __used __attribute__((__aligned__(4))) __attribute__((section("__syscalls_metadata"))) __syscall_meta__socket = { .name = "sys""_socket", .nb_args = 3, .types = types__socket, .args = args__socket, }; asmlinkage long sys_socket(int family, int type, int protocol)
+{}
