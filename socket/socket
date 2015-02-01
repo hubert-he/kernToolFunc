@@ -1,0 +1,372 @@
+// domain == family: AF_NET
+// type:SOCK_STREAM
+// protocol: IPPROTO_TCP
+socket系统调用
+====================================================================================
+struct socket {
+	socket_state		state; => SS_UNCONNECTED[sock_alloc_inode()]
+	short			type; => SOCK_STREAM[__sock_create()]
+	unsigned long		flags; => 0[sock_alloc_inode()]
+	struct fasync_struct	*fasync_list;
+	wait_queue_head_t	wait;
+	struct file		*file; => NULL[sock_alloc_inode()]
+	struct sock		*sk; => NULL[sock_alloc_inode()] => sk[sock_init_data()]
+	const struct proto_ops	*ops; => NULL[sock_alloc_inode()] => inet_stream_ops[inet_create()]
+};
+
+
+
+
+__sock_create
+	--> sock = sock_alloc(); //根据sock_mnt创建索引节点+socket对
+	--> err = pf->create(net, sock, protocol); //根据net_families选择合适的socket层操作函数inet_family_ops
+		--> err = sk->sk_prot->init(sk) // tcp_v4_init_sock 根据protocol查找到合适的下一层后，初始化下一层
+	
+	
+struct sock_common {
+	union {
+		struct hlist_node	skc_node;
+		struct hlist_nulls_node skc_nulls_node;
+	};
+	atomic_t		skc_refcnt; => 1[sock_init_data()]
+	unsigned int		skc_hash;
+	unsigned short		skc_family; => PF_INET[sk_alloc()]
+	volatile unsigned char	skc_state; => TCP_CLOSE[sock_init_data]
+	unsigned char		skc_reuse;
+	int			skc_bound_dev_if;
+	struct hlist_node	skc_bind_node;
+	struct proto		*skc_prot; => tcp_prot[sk_alloc()]
+#ifdef CONFIG_NET_NS
+	struct net	 	*skc_net; => sock_net_set()[sk_alloc()] 
+#endif
+}
+struct sock {
+	struct sock_common	__sk_common;
+#define sk_node			__sk_common.skc_node
+#define sk_nulls_node		__sk_common.skc_nulls_node
+#define sk_refcnt		__sk_common.skc_refcnt  => 1[sock_init_data()]
+#define sk_copy_start		__sk_common.skc_hash
+#define sk_hash			__sk_common.skc_hash
+#define sk_family		__sk_common.skc_family => PF_INET[sk_alloc()]// @skc_family: network address family, 例如 PF_INET
+#define sk_state		__sk_common.skc_state => TCP_CLOSE[sock_init_data]// @skc_state: Connection state, TCP_CLOSE
+#define sk_reuse		__sk_common.skc_reuse // @skc_reuse: %SO_REUSEADDR setting
+#define sk_bound_dev_if		__sk_common.skc_bound_dev_if
+#define sk_bind_node		__sk_common.skc_bind_node
+#define sk_prot			__sk_common.skc_prot => tcp_prot[sk_alloc()] //@skc_prot: protocol handlers inside a network family, 例如 tcp_prot
+#define sk_net			__sk_common.skc_net => sock_net_set()[sk_alloc()] 
+	unsigned char		sk_shutdown : 2,
+				sk_no_check : 2,  => 0[inet_create()]// @sk_no_check: %SO_NO_CHECK setting, wether or not checkup packets
+				sk_userlocks : 4;
+	unsigned char		sk_protocol; => IPPROTO_TCP[sk_alloc()] // @sk_protocol: which protocol this socket belongs in this network family, 例如 IPPROTO_TCP
+	unsigned short		sk_type; => SOCK_STREAM[sock_init_data()] // @sk_type: socket type (%SOCK_STREAM, etc) 与socket下sock->type 对应
+	int			sk_rcvbuf; => sysctl_rmem_default[sock_init_data()] => sysctl_tcp_rmem[1][tcp_v4_init_sock]// @sk_rcvbuf: size of receive buffer in bytes
+	socket_lock_t		sk_lock; => sock_lock_init()[sk_alloc()] 
+	struct {
+		struct sk_buff *head;
+		struct sk_buff *tail;
+	} sk_backlog;
+	wait_queue_head_t	*sk_sleep; => &sock->wait[sock_init_data()]// @sk_sleep: sock wait queue 与socket下wait 对应
+	struct dst_entry	*sk_dst_cache;//@sk_dst_cache: destination cache
+#ifdef CONFIG_XFRM
+	struct xfrm_policy	*sk_policy[2];
+#endif
+	rwlock_t		sk_dst_lock; => rwlock_init()[sock_init_data()]// @sk_dst_lock: destination cache lock
+	atomic_t		sk_rmem_alloc;
+	atomic_t		sk_wmem_alloc;
+	atomic_t		sk_omem_alloc;
+	int			sk_sndbuf; => sysctl_wmem_default[sock_init_data] => sysctl_tcp_wmem[1][tcp_v4_init_sock]// @sk_sndbuf: size of send buffer in bytes  与全局变量sysctl_rmem_default 相关
+	struct sk_buff_head	sk_receive_queue; => skb_queue_head_init()[sock_init_data()]// @sk_receive_queue: incoming packets sysctl_wmem_default
+	struct sk_buff_head	sk_write_queue; => skb_queue_head_init()[sock_init_data()] // @sk_write_queue: Packet sending queue
+#ifdef CONFIG_NET_DMA
+	struct sk_buff_head	sk_async_wait_queue; => skb_queue_head_init()[sock_init_data()]
+#endif
+	int			sk_wmem_queued;
+	int			sk_forward_alloc;
+	gfp_t			sk_allocation; => GFP_KERNEL[sock_init_data()]// @sk_allocation: allocation mode
+	int			sk_route_caps;
+	int			sk_gso_type;
+	unsigned int		sk_gso_max_size;
+	int			sk_rcvlowat; => 1[sock_init_data()]
+	unsigned long 		sk_flags; => SOCK_ZAPPED[sock_init_data()] => SOCK_USE_WRITE_QUEUE[tcp_v4_init_sock]// @sk_flags: %SO_LINGER (l_onoff), %SO_BROADCAST, %SO_KEEPALIVE, %SO_OOBINLINE settings, %SO_TIMESTAMPING settings  套接字选项设置位置
+	unsigned long	        sk_lingertime;
+	struct sk_buff_head	sk_error_queue; => skb_queue_head_init()[sock_init_data()]//@sk_error_queue: rarely used
+	struct proto		*sk_prot_creator; //@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,IPV6_ADDRFORM for instance) 例如，tcp_prot
+	rwlock_t		sk_callback_lock; => rwlock_init()[sock_init_data()]//@sk_callback_lock: used with the callbacks in the end of this struct
+	int			sk_err,
+				sk_err_soft;
+	atomic_t		sk_drops; => 0[sock_init_data()]
+	unsigned short		sk_ack_backlog;
+	unsigned short		sk_max_ack_backlog;//@sk_max_ack_backlog: listen backlog set in listen()
+	__u32			sk_priority;
+	struct ucred		sk_peercred; => 0,-1,-1[sock_init_data()]
+	long			sk_rcvtimeo; => MAX_SCHEDULE_TIMEOUT[sock_init_data()]
+	long			sk_sndtimeo; => MAX_SCHEDULE_TIMEOUT[sock_init_data()]
+	struct sk_filter      	*sk_filter;
+	void			*sk_protinfo;
+	struct timer_list	sk_timer; => init_timer()[sock_init_data()]// @sk_timer: sock cleanup timer
+	ktime_t			sk_stamp; => ktime_set()[sock_init_data()]
+	struct socket		*sk_socket; => sk_set_socket()[sock_init_data]//@sk_socket: Identd and reporting IO signals, 反向指向 socket结构体
+	void			*sk_user_data;
+	struct page		*sk_sndmsg_page; => NULL[sock_init_data()]// @sk_sndmsg_page: cached page for sendmsg
+	struct sk_buff		*sk_send_head; => NULL[sock_init_data()]//@sk_send_head: front of stuff to transmit
+	__u32			sk_sndmsg_off; => 0[sock_init_data()]//@sk_sndmsg_off: cached offset for sendmsg
+	int			sk_write_pending; => 0[sock_init_data()]
+#ifdef CONFIG_SECURITY
+	void			*sk_security;
+#endif
+	__u32	sk_mark;
+	void	(*sk_state_change)(struct sock *sk); => sock_def_wakeup[sock_init_data()]// @sk_state_change: callback to indicate change in the state of the sock, 例如sock_def_wakeup
+	void	(*sk_data_ready)(struct sock *sk, int bytes); => sock_def_readable[sock_init_data()]// @sk_data_ready: callback to indicate there is data to be processed   sock_def_readable
+	void	(*sk_write_space)(struct sock *sk); => sock_def_write_space[sock_init_data()] => sk_stream_write_space[tcp_v4_init_sock]// @sk_write_space: callback to indicate there is bf sending space available   sock_def_write_space
+	void	(*sk_error_report)(struct sock *sk); => sock_def_error_report[sock_init_data()]// @sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE)  sock_def_error_report
+  	int		(*sk_backlog_rcv)(struct sock *sk, struct sk_buff *skb);  => tcp_v4_do_rcv[inet_create()] // @sk_backlog_rcv: callback to process the backlog					  
+	void    (*sk_destruct)(struct sock *sk); => sock_def_destruct[sock_init_data()] => inet_sock_destruct[inet_create()] // @sk_destruct: called at sock freeing time, i.e. when all refcnt == 0   sock_def_destruct
+	__u32	sk_ethprio; /*wt-146, ethprio*/
+}	
+
+struct inet_sock {
+	struct sock		sk; => inet_sk(sk)[inet_create()]
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	struct ipv6_pinfo	*pinet6;
+#endif
+	__be32			daddr;
+	__be32			rcv_saddr;
+	__be16			dport;
+	__u16			num;
+	__be32			saddr;
+	__s16			uc_ttl; => -1[inet_create()]
+	__u16			cmsg_flags;
+	struct ip_options	*opt;
+	__be16			sport;
+	__u16			id; => 0[inet_create()]
+	__u8			tos;
+	__u8			mc_ttl; => 1[inet_create()]
+	__u8			pmtudisc; => ipv4_config.no_pmtu_disc相关[inet_create()]
+	__u8			recverr:1,
+				is_icsk:1, => 1[inet_create()]
+				freebind:1,
+				hdrincl:1,
+				mc_loop:1, => 1[inet_create()]
+				transparent:1;
+	int			mc_index; => 0[inet_create()]
+	__be32			mc_addr;
+	struct ip_mc_socklist	*mc_list; => NULL[inet_create()]
+	struct {
+		unsigned int		flags;
+		unsigned int		fragsize;
+		struct ip_options	*opt;
+		struct dst_entry	*dst;
+		int			length; /* Total length of all frames */
+		__be32			addr;
+		struct flowi		fl;
+	} cork;
+}
+
+struct inet_connection_sock {
+	/* inet_sock has to be the first member! */
+	struct inet_sock	  icsk_inet;
+	struct request_sock_queue icsk_accept_queue;
+	struct inet_bind_bucket	  *icsk_bind_hash;
+	unsigned long		  icsk_timeout;
+ 	struct timer_list	  icsk_retransmit_timer;
+ 	struct timer_list	  icsk_delack_timer;
+	__u32			  icsk_rto;
+	__u32			  icsk_pmtu_cookie;
+	const struct tcp_congestion_ops *icsk_ca_ops;
+	const struct inet_connection_sock_af_ops *icsk_af_ops;
+	unsigned int		  (*icsk_sync_mss)(struct sock *sk, u32 pmtu);
+	__u8			  icsk_ca_state;
+	__u8			  icsk_retransmits;
+	__u8			  icsk_pending;
+	__u8			  icsk_backoff;
+	__u8			  icsk_syn_retries;
+	__u8			  icsk_probes_out;
+	__u16			  icsk_ext_hdr_len;
+	struct {
+		__u8		  pending;	 /* ACK is pending			   */
+		__u8		  quick;	 /* Scheduled number of quick acks	   */
+		__u8		  pingpong;	 /* The session is interactive		   */
+		__u8		  blocked;	 /* Delayed ACK was blocked by socket lock */
+		__u32		  ato;		 /* Predicted tick of soft clock	   */
+		unsigned long	  timeout;	 /* Currently scheduled timeout		   */
+		__u32		  lrcvtime;	 /* timestamp of last received data packet */
+		__u16		  last_seg_size; /* Size of last incoming segment	   */
+		__u16		  rcv_mss;	 /* MSS used for delayed ACK decisions	   */ 
+	} icsk_ack;
+	struct {
+		int		  enabled;
+		/* Range of MTUs to search */
+		int		  search_high;
+		int		  search_low;
+		/* Information on the current probe. */
+		int		  probe_size;
+	} icsk_mtup;
+	u32			  icsk_ca_priv[16];
+#define ICSK_CA_PRIV_SIZE	(16 * sizeof(u32))
+}
+
+struct tcp_sock {
+	/* inet_connection_sock has to be the first member of tcp_sock */
+	struct inet_connection_sock	inet_conn;
+	u16	tcp_header_len;	/* Bytes of tcp header to send		*/
+	u16	xmit_size_goal_segs; /* Goal for segmenting output packets */
+
+/*
+ *	Header prediction flags
+ *	0x5?10 << 16 + snd_wnd in net byte order
+ */
+	__be32	pred_flags;
+
+/*
+ *	RFC793 variables by their proper names. This means you can
+ *	read the code and the spec side by side (and laugh ...)
+ *	See RFC793 and RFC1122. The RFC writes these in capitals.
+ */
+ 	u32	rcv_nxt;	/* What we want to receive next 	*/
+	u32	copied_seq;	/* Head of yet unread data		*/
+	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
+ 	u32	snd_nxt;	/* Next sequence we send		*/
+
+ 	u32	snd_una;	/* First byte we want an ack for	*/
+ 	u32	snd_sml;	/* Last byte of the most recently transmitted small packet */
+	u32	rcv_tstamp;	/* timestamp of last received ACK (for keepalives) */
+	u32	lsndtime;	/* timestamp of last sent data packet (for restart window) */
+
+	/* Data for direct copy to user */
+	struct {
+		struct sk_buff_head	prequeue;
+		struct task_struct	*task;
+		struct iovec		*iov;
+		int			memory;
+		int			len;
+#ifdef CONFIG_NET_DMA
+		/* members for async copy */
+		struct dma_chan		*dma_chan;
+		int			wakeup;
+		struct dma_pinned_list	*pinned_list;
+		dma_cookie_t		dma_cookie;
+#endif
+	} ucopy;
+
+	u32	snd_wl1;	/* Sequence for window update		*/
+	u32	snd_wnd;	/* The window we expect to receive	*/
+	u32	max_window;	/* Maximal window ever seen from peer	*/
+	u32	mss_cache;	/* Cached effective mss, not including SACKS */
+
+	u32	window_clamp;	/* Maximal window to advertise		*/
+	u32	rcv_ssthresh;	/* Current window clamp			*/
+
+	u32	frto_highmark;	/* snd_nxt when RTO occurred */
+	u16	advmss;		/* Advertised MSS			*/
+	u8	frto_counter;	/* Number of new acks after RTO */
+	u8	nonagle;	/* Disable Nagle algorithm?             */
+
+/* RTT measurement */
+	u32	srtt;		/* smoothed round trip time << 3	*/
+	u32	mdev;		/* medium deviation			*/
+	u32	mdev_max;	/* maximal mdev for the last rtt period	*/
+	u32	rttvar;		/* smoothed mdev_max			*/
+	u32	rtt_seq;	/* sequence number to update rttvar	*/
+
+	u32	packets_out;	/* Packets which are "in flight"	*/
+	u32	retrans_out;	/* Retransmitted packets out		*/
+
+	u16	urg_data;	/* Saved octet of OOB data and control flags */
+	u8	ecn_flags;	/* ECN status bits.			*/
+	u8	reordering;	/* Packet reordering metric.		*/
+	u32	snd_up;		/* Urgent pointer		*/
+
+	u8	keepalive_probes; /* num of allowed keep alive probes	*/
+/*
+ *      Options received (usually on last packet, some only on SYN packets).
+ */
+	struct tcp_options_received rx_opt;
+
+/*
+ *	Slow start and congestion control (see also Nagle, and Karn & Partridge)
+ */
+ 	u32	snd_ssthresh;	/* Slow start size threshold		*/
+ 	u32	snd_cwnd;	/* Sending congestion window		*/
+	u32	snd_cwnd_cnt;	/* Linear increase counter		*/
+	u32	snd_cwnd_clamp; /* Do not allow snd_cwnd to grow above this */
+	u32	snd_cwnd_used;
+	u32	snd_cwnd_stamp;
+
+ 	u32	rcv_wnd;	/* Current receiver window		*/
+	u32	write_seq;	/* Tail(+1) of data held in tcp send buffer */
+	u32	pushed_seq;	/* Last pushed seq, required to talk to windows */
+	u32	lost_out;	/* Lost packets			*/
+	u32	sacked_out;	/* SACK'd packets			*/
+	u32	fackets_out;	/* FACK'd packets			*/
+	u32	tso_deferred;
+	u32	bytes_acked;	/* Appropriate Byte Counting - RFC3465 */
+
+	/* from STCP, retrans queue hinting */
+	struct sk_buff* lost_skb_hint;
+	struct sk_buff *scoreboard_skb_hint;
+	struct sk_buff *retransmit_skb_hint;
+
+	struct sk_buff_head	out_of_order_queue; => skb_queue_head_init()[tcp_v4_init_sock]/* Out of order segments go here */
+
+	/* SACKs data, these 2 need to be together (see tcp_build_and_update_options) */
+	struct tcp_sack_block duplicate_sack[1]; /* D-SACK block */
+	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves*/
+
+	struct tcp_sack_block recv_sack_cache[4];
+
+	struct sk_buff *highest_sack;   /* highest skb with SACK received
+					 * (validity guaranteed only if
+					 * sacked_out > 0)
+					 */
+
+	int     lost_cnt_hint;
+	u32     retransmit_high;	/* L-bits may be on up to this seqno */
+
+	u32	lost_retrans_low;	/* Sent seq after any rxmit (lowest) */
+
+	u32	prior_ssthresh; /* ssthresh saved at recovery start	*/
+	u32	high_seq;	/* snd_nxt at onset of congestion	*/
+
+	u32	retrans_stamp;	/* Timestamp of the last retransmit,
+				 * also used in SYN-SENT to remember stamp of
+				 * the first SYN. */
+	u32	undo_marker;	/* tracking retrans started here. */
+	int	undo_retrans;	/* number of undoable retransmissions. */
+	u32	total_retrans;	/* Total retransmits for entire connection */
+
+	u32	urg_seq;	/* Seq of received urgent pointer */
+	unsigned int		keepalive_time;	  /* time before keep alive takes place */
+	unsigned int		keepalive_intvl;  /* time interval between keep alive probes */
+
+	unsigned long last_synq_overflow; 
+
+/* Receiver side RTT estimation */
+	struct {
+		u32	rtt;
+		u32	seq;
+		u32	time;
+	} rcv_rtt_est;
+
+/* Receiver queue space */
+	struct {
+		int	space;
+		u32	seq;
+		u32	time;
+	} rcvq_space;
+
+/* TCP-specific MTU probe information. */
+	struct {
+		u32		  probe_seq_start;
+		u32		  probe_seq_end;
+	} mtu_probe;
+
+#ifdef CONFIG_TCP_MD5SIG
+/* TCP AF-Specific parts; only used by MD5 Signature support so far */
+	struct tcp_sock_af_ops	*af_specific;
+
+/* TCP MD5 Signagure Option information */
+	struct tcp_md5sig_info	*md5sig_info;
+#endif
+
+	int			linger2;
+}
