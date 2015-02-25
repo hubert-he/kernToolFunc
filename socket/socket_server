@@ -1,7 +1,7 @@
-// domain == family: AF_NET
+ï»¿// domain == family: AF_NET
 // type:SOCK_STREAM
 // protocol: IPPROTO_TCP
-socketÏµÍ³µ÷ÓÃ
+socketç³»ç»Ÿè°ƒç”¨
 ====================================================================================
 struct socket {
 	socket_state		state; => SS_UNCONNECTED[sock_alloc_inode()]
@@ -16,9 +16,9 @@ struct socket {
 
 
 __sock_create
-	--> sock = sock_alloc(); //¸ù¾İsock_mnt´´½¨Ë÷Òı½Úµã+socket¶Ô
-	--> err = pf->create(net, sock, protocol); //¸ù¾İnet_familiesÑ¡ÔñºÏÊÊµÄsocket²ã²Ù×÷º¯Êıinet_family_ops
-		--> err = sk->sk_prot->init(sk) // tcp_v4_init_sock ¸ù¾İprotocol²éÕÒµ½ºÏÊÊµÄÏÂÒ»²ãºó£¬³õÊ¼»¯ÏÂÒ»²ã
+	--> sock = sock_alloc(); //æ ¹æ®sock_mntåˆ›å»ºç´¢å¼•èŠ‚ç‚¹+socketå¯¹
+	--> err = pf->create(net, sock, protocol); //æ ¹æ®net_familiesé€‰æ‹©åˆé€‚çš„socketå±‚æ“ä½œå‡½æ•°inet_family_ops
+		--> err = sk->sk_prot->init(sk) // tcp_v4_init_sock æ ¹æ®protocolæŸ¥æ‰¾åˆ°åˆé€‚çš„ä¸‹ä¸€å±‚åï¼Œåˆå§‹åŒ–ä¸‹ä¸€å±‚
 	
 	
 struct sock_common {
@@ -45,26 +45,26 @@ struct sock {
 #define sk_refcnt		__sk_common.skc_refcnt  => 1[sock_init_data()]
 #define sk_copy_start		__sk_common.skc_hash
 #define sk_hash			__sk_common.skc_hash
-#define sk_family		__sk_common.skc_family => PF_INET[sk_alloc()]// @skc_family: network address family, ÀıÈç PF_INET
+#define sk_family		__sk_common.skc_family => PF_INET[sk_alloc()]// @skc_family: network address family, ä¾‹å¦‚ PF_INET
 #define sk_state		__sk_common.skc_state => TCP_CLOSE[sock_init_data]// @skc_state: Connection state, TCP_CLOSE
 											  => TCP_LISTEN[inet_csk_listen_start]
 #define sk_reuse		__sk_common.skc_reuse // @skc_reuse: %SO_REUSEADDR setting
 #define sk_bound_dev_if		__sk_common.skc_bound_dev_if
 #define sk_bind_node		__sk_common.skc_bind_node
-#define sk_prot			__sk_common.skc_prot => tcp_prot[sk_alloc()] //@skc_prot: protocol handlers inside a network family, ÀıÈç tcp_prot
+#define sk_prot			__sk_common.skc_prot => tcp_prot[sk_alloc()] //@skc_prot: protocol handlers inside a network family, ä¾‹å¦‚ tcp_prot
 #define sk_net			__sk_common.skc_net => sock_net_set()[sk_alloc()] 
 	unsigned char		sk_shutdown : 2,
 				sk_no_check : 2,  => 0[inet_create()]// @sk_no_check: %SO_NO_CHECK setting, wether or not checkup packets
 				sk_userlocks : 4;
-	unsigned char		sk_protocol; => IPPROTO_TCP[sk_alloc()] // @sk_protocol: which protocol this socket belongs in this network family, ÀıÈç IPPROTO_TCP
-	unsigned short		sk_type; => SOCK_STREAM[sock_init_data()] // @sk_type: socket type (%SOCK_STREAM, etc) ÓësocketÏÂsock->type ¶ÔÓ¦
+	unsigned char		sk_protocol; => IPPROTO_TCP[sk_alloc()] // @sk_protocol: which protocol this socket belongs in this network family, ä¾‹å¦‚ IPPROTO_TCP
+	unsigned short		sk_type; => SOCK_STREAM[sock_init_data()] // @sk_type: socket type (%SOCK_STREAM, etc) ä¸socketä¸‹sock->type å¯¹åº”
 	int			sk_rcvbuf; => sysctl_rmem_default[sock_init_data()] => sysctl_tcp_rmem[1][tcp_v4_init_sock]// @sk_rcvbuf: size of receive buffer in bytes
 	socket_lock_t		sk_lock; => sock_lock_init()[sk_alloc()] 
 	struct {
 		struct sk_buff *head;
 		struct sk_buff *tail;
 	} sk_backlog;
-	wait_queue_head_t	*sk_sleep; => &sock->wait[sock_init_data()]// @sk_sleep: sock wait queue ÓësocketÏÂwait ¶ÔÓ¦
+	wait_queue_head_t	*sk_sleep; => &sock->wait[sock_init_data()]// @sk_sleep: sock wait queue ä¸socketä¸‹wait å¯¹åº”
 	struct dst_entry	*sk_dst_cache;//@sk_dst_cache: destination cache
 #ifdef CONFIG_XFRM
 	struct xfrm_policy	*sk_policy[2];
@@ -73,7 +73,7 @@ struct sock {
 	atomic_t		sk_rmem_alloc;
 	atomic_t		sk_wmem_alloc;
 	atomic_t		sk_omem_alloc;
-	int			sk_sndbuf; => sysctl_wmem_default[sock_init_data] => sysctl_tcp_wmem[1][tcp_v4_init_sock]// @sk_sndbuf: size of send buffer in bytes  ÓëÈ«¾Ö±äÁ¿sysctl_rmem_default Ïà¹Ø
+	int			sk_sndbuf; => sysctl_wmem_default[sock_init_data] => sysctl_tcp_wmem[1][tcp_v4_init_sock]// @sk_sndbuf: size of send buffer in bytes  ä¸å…¨å±€å˜é‡sysctl_rmem_default ç›¸å…³
 	struct sk_buff_head	sk_receive_queue; => skb_queue_head_init()[sock_init_data()]// @sk_receive_queue: incoming packets sysctl_wmem_default
 	struct sk_buff_head	sk_write_queue; => skb_queue_head_init()[sock_init_data()] // @sk_write_queue: Packet sending queue
 #ifdef CONFIG_NET_DMA
@@ -86,10 +86,10 @@ struct sock {
 	int			sk_gso_type;
 	unsigned int		sk_gso_max_size;
 	int			sk_rcvlowat; => 1[sock_init_data()]
-	unsigned long 		sk_flags; => SOCK_ZAPPED[sock_init_data()] => SOCK_USE_WRITE_QUEUE[tcp_v4_init_sock]// @sk_flags: %SO_LINGER (l_onoff), %SO_BROADCAST, %SO_KEEPALIVE, %SO_OOBINLINE settings, %SO_TIMESTAMPING settings  Ì×½Ó×ÖÑ¡ÏîÉèÖÃÎ»ÖÃ
+	unsigned long 		sk_flags; => SOCK_ZAPPED[sock_init_data()] => SOCK_USE_WRITE_QUEUE[tcp_v4_init_sock]// @sk_flags: %SO_LINGER (l_onoff), %SO_BROADCAST, %SO_KEEPALIVE, %SO_OOBINLINE settings, %SO_TIMESTAMPING settings  å¥—æ¥å­—é€‰é¡¹è®¾ç½®ä½ç½®
 	unsigned long	        sk_lingertime;
 	struct sk_buff_head	sk_error_queue; => skb_queue_head_init()[sock_init_data()]//@sk_error_queue: rarely used
-	struct proto		*sk_prot_creator; //@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,IPV6_ADDRFORM for instance) ÀıÈç£¬tcp_prot
+	struct proto		*sk_prot_creator; //@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,IPV6_ADDRFORM for instance) ä¾‹å¦‚ï¼Œtcp_prot
 	rwlock_t		sk_callback_lock; => rwlock_init()[sock_init_data()]//@sk_callback_lock: used with the callbacks in the end of this struct
 	int			sk_err,
 				sk_err_soft;
@@ -104,7 +104,7 @@ struct sock {
 	void			*sk_protinfo;
 	struct timer_list	sk_timer; => init_timer()[sock_init_data()]// @sk_timer: sock cleanup timer
 	ktime_t			sk_stamp; => ktime_set()[sock_init_data()]
-	struct socket		*sk_socket; => sk_set_socket()[sock_init_data]//@sk_socket: Identd and reporting IO signals, ·´ÏòÖ¸Ïò socket½á¹¹Ìå
+	struct socket		*sk_socket; => sk_set_socket()[sock_init_data]//@sk_socket: Identd and reporting IO signals, åå‘æŒ‡å‘ socketç»“æ„ä½“
 	void			*sk_user_data;
 	struct page		*sk_sndmsg_page; => NULL[sock_init_data()]// @sk_sndmsg_page: cached page for sendmsg
 	struct sk_buff		*sk_send_head; => NULL[sock_init_data()]//@sk_send_head: front of stuff to transmit
@@ -114,7 +114,7 @@ struct sock {
 	void			*sk_security;
 #endif
 	__u32	sk_mark;
-	void	(*sk_state_change)(struct sock *sk); => sock_def_wakeup[sock_init_data()]// @sk_state_change: callback to indicate change in the state of the sock, ÀıÈçsock_def_wakeup
+	void	(*sk_state_change)(struct sock *sk); => sock_def_wakeup[sock_init_data()]// @sk_state_change: callback to indicate change in the state of the sock, ä¾‹å¦‚sock_def_wakeup
 	void	(*sk_data_ready)(struct sock *sk, int bytes); => sock_def_readable[sock_init_data()]// @sk_data_ready: callback to indicate there is data to be processed   sock_def_readable
 	void	(*sk_write_space)(struct sock *sk); => sock_def_write_space[sock_init_data()] => sk_stream_write_space[tcp_v4_init_sock]// @sk_write_space: callback to indicate there is bf sending space available   sock_def_write_space
 	void	(*sk_error_report)(struct sock *sk); => sock_def_error_report[sock_init_data()]// @sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE)  sock_def_error_report
@@ -140,7 +140,7 @@ struct inet_sock {
 	__u16			id; => 0[inet_create()]
 	__u8			tos;
 	__u8			mc_ttl; => 1[inet_create()]
-	__u8			pmtudisc; => ipv4_config.no_pmtu_discÏà¹Ø[inet_create()]
+	__u8			pmtudisc; => ipv4_config.no_pmtu_discç›¸å…³[inet_create()]
 	__u8			recverr:1,
 				is_icsk:1, => 1[inet_create()]
 				freebind:1,
