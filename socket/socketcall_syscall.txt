@@ -1,0 +1,1 @@
+SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
