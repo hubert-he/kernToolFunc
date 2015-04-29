@@ -1,0 +1,639 @@
+﻿// domain == family: AF_NET
+// type:SOCK_STREAM
+// protocol: IPPROTO_TCP
+socket系统调用
+====================================================================================
+struct socket {
+	socket_state		state; => SS_UNCONNECTED[sock_alloc_inode()]
+						       connect => SS_CONNECTING[inet_stream_connect]
+	short			type; => SOCK_STREAM[__sock_create()]
+	unsigned long		flags; => 0[sock_alloc_inode()]
+	struct fasync_struct	*fasync_list;
+	wait_queue_head_t	wait;
+	struct file		*file; => NULL[sock_alloc_inode()] => file[sock_attach_fd]
+	struct sock		*sk; => NULL[sock_alloc_inode()] => sk[sock_init_data()]
+	const struct proto_ops	*ops; => NULL[sock_alloc_inode()] => inet_stream_ops[inet_create()]
+};
+
+
+
+
+__sock_create
+	--> sock = sock_alloc(); //根据sock_mnt创建索引节点+socket对
+	--> err = pf->create(net, sock, protocol); //根据net_families选择合适的socket层操作函数inet_family_ops
+		--> err = sk->sk_prot->init(sk) // tcp_v4_init_sock 根据protocol查找到合适的下一层后，初始化下一层
+
+sys_connect	
+	--> sock->ops->connect(); // inet_stream_connect
+		--> sk->sk_prot->connect() // tcp: tcp_v4_connect
+			--> 
+tcp_v4_connect:
+	
+SYN 包发送栈：
+收到arp包后，处理arp_queue队列中的包，这是首次与邻居通信时发生的
+Call Trace:
+[<800af694>] dump_stack+0x8/0x34
+[<803bbf6c>] re865x_start_xmit+0x24/0x184
+[<802ce120>] dev_hard_start_xmit+0xec/0x1e8
+[<802df5bc>] __qdisc_run+0x11c/0x284
+[<802ce3cc>] dev_queue_xmit+0x1b0/0x2e0
+[<8039a4ec>] br_dev_queue_push_xmit+0xb0/0xc4
+[<803982a0>] br_dev_xmit+0x1f8/0x238
+[<802ce120>] dev_hard_start_xmit+0xec/0x1e8
+[<802ce420>] dev_queue_xmit+0x204/0x2e0
+[<802d695c>] neigh_update+0x298/0x3f4
+[<803305ec>] arp_process+0x57c/0x654
+[<8039c6c4>] br_pass_frame_up+0xb0/0xc0
+[<8039c81c>] br_handle_frame_finish+0x148/0x488
+[<8039cdcc>] br_handle_frame+0x270/0x2ac
+[<802cd1c4>] netif_receive_skb+0x2a0/0x3e4
+[<803c1ac8>] process_backlog+0xb4/0x11c
+[<803c1bc8>] net_rx_action+0x98/0x1e4
+[<800c7b84>] __do_softirq+0x94/0x144
+[<803b81e4>] do_softirq+0x4c/0x74
+[<803b8168>] bsp_irq_dispatch+0xd8/0x108
+[<800aa654>] ret_from_irq+0x0/0x4
+[<800bc660>] vprintk+0x2a4/0x2d8
+[<800af6e4>] printk+0x24/0x30
+[<80321f5c>] tcp_transmit_skb+0x478/0x518
+[<80322720>] tcp_connect+0x188/0x218
+[<80328aa4>] tcp_v4_connect+0x3a0/0x414
+[<80335754>] inet_stream_connect+0xcc/0x200
+[<802bd5c8>] sys_connect+0x74/0xb0
+[<800ab4e8>] stack_done+0x20/0x40
+
+
+struct sock_common {
+	union {
+		struct hlist_node	skc_node;
+		struct hlist_nulls_node skc_nulls_node;
+	};
+	atomic_t		skc_refcnt; => 1[sock_init_data()]
+	unsigned int		skc_hash;
+	unsigned short		skc_family; => PF_INET[sk_alloc()]
+	volatile unsigned char	skc_state; => TCP_CLOSE[sock_init_data] => TCP_SYN_SENT[tcp_v4_connect]
+	unsigned char		skc_reuse;
+	int			skc_bound_dev_if;
+	struct hlist_node	skc_bind_node;
+	struct proto		*skc_prot; => tcp_prot[sk_alloc()]
+#ifdef CONFIG_NET_NS
+	struct net	 	*skc_net; => sock_net_set()[sk_alloc()] 
+#endif
+}
+
+struct sock {
+	struct sock_common	__sk_common;
+#define sk_node			__sk_common.skc_node
+#define sk_nulls_node		__sk_common.skc_nulls_node
+#define sk_refcnt		__sk_common.skc_refcnt  => 1[sock_init_data()]
+#define sk_copy_start		__sk_common.skc_hash
+#define sk_hash			__sk_common.skc_hash
+#define sk_family		__sk_common.skc_family => PF_INET[sk_alloc()]// @skc_family: network address family, 例如 PF_INET
+#define sk_state		__sk_common.skc_state => TCP_CLOSE[sock_init_data] => TCP_SYN_SENT[tcp_v4_connect]// @skc_state: Connection state, TCP_CLOSE
+#define sk_reuse		__sk_common.skc_reuse // @skc_reuse: %SO_REUSEADDR setting
+#define sk_bound_dev_if		__sk_common.skc_bound_dev_if
+#define sk_bind_node		__sk_common.skc_bind_node
+#define sk_prot			__sk_common.skc_prot => tcp_prot[sk_alloc()] //@skc_prot: protocol handlers inside a network family, 例如 tcp_prot
+#define sk_net			__sk_common.skc_net => sock_net_set()[sk_alloc()] 
+	unsigned char		sk_shutdown : 2,
+				sk_no_check : 2,  => 0[inet_create()]// @sk_no_check: %SO_NO_CHECK setting, wether or not checkup packets
+				sk_userlocks : 4;
+	unsigned char		sk_protocol; => IPPROTO_TCP[sk_alloc()] // @sk_protocol: which protocol this socket belongs in this network family, 例如 IPPROTO_TCP
+	unsigned short		sk_type; => SOCK_STREAM[sock_init_data()] // @sk_type: socket type (%SOCK_STREAM, etc) 与socket下sock->type 对应
+	int			sk_rcvbuf; => sysctl_rmem_default[sock_init_data()] => sysctl_tcp_rmem[1][tcp_v4_init_sock]// @sk_rcvbuf: size of receive buffer in bytes
+	socket_lock_t		sk_lock; => sock_lock_init()[sk_alloc()] 
+	struct {
+		struct sk_buff *head;
+		struct sk_buff *tail;
+	} sk_backlog;
+	wait_queue_head_t	*sk_sleep; => &sock->wait[sock_init_data()]// @sk_sleep: sock wait queue 与socket下wait 对应
+	struct dst_entry	*sk_dst_cache;//@sk_dst_cache: destination cache
+#ifdef CONFIG_XFRM
+	struct xfrm_policy	*sk_policy[2];
+#endif
+	rwlock_t		sk_dst_lock; => rwlock_init()[sock_init_data()]// @sk_dst_lock: destination cache lock
+	atomic_t		sk_rmem_alloc;
+	atomic_t		sk_wmem_alloc;
+	atomic_t		sk_omem_alloc;
+	int			sk_sndbuf; => sysctl_wmem_default[sock_init_data] => sysctl_tcp_wmem[1][tcp_v4_init_sock]// @sk_sndbuf: size of send buffer in bytes  与全局变量sysctl_rmem_default 相关
+	struct sk_buff_head	sk_receive_queue; => skb_queue_head_init()[sock_init_data()]// @sk_receive_queue: incoming packets sysctl_wmem_default
+	struct sk_buff_head	sk_write_queue; => skb_queue_head_init()[sock_init_data()] => __tcp_add_write_queue_tail[tcp_connect]// @sk_write_queue: Packet sending queue
+#ifdef CONFIG_NET_DMA
+	struct sk_buff_head	sk_async_wait_queue; => skb_queue_head_init()[sock_init_data()]
+#endif
+	int			sk_wmem_queued; => sk->sk_wmem_queued += buff->truesize[tcp_connect]
+	int			sk_forward_alloc; => sk_mem_charge()[tcp_connect]
+	gfp_t			sk_allocation; => GFP_KERNEL[sock_init_data()]// @sk_allocation: allocation mode
+	int			sk_route_caps; => dst->dev->features[sk_setup_caps]
+	int			sk_gso_type; => SKB_GSO_TCPV4[tcp_v4_connect]
+	unsigned int		sk_gso_max_size; => dst->dev->gso_max_size[sk_setup_caps]
+	int			sk_rcvlowat; => 1[sock_init_data()]
+	unsigned long 		sk_flags; => SOCK_ZAPPED[sock_init_data()] => SOCK_USE_WRITE_QUEUE[tcp_v4_init_sock] => sock_reset_flag(sk, SOCK_DONE)[tcp_connect_init]// @sk_flags: %SO_LINGER (l_onoff), %SO_BROADCAST, %SO_KEEPALIVE, %SO_OOBINLINE settings, %SO_TIMESTAMPING settings  套接字选项设置位置
+	unsigned long	        sk_lingertime;
+	struct sk_buff_head	sk_error_queue; => skb_queue_head_init()[sock_init_data()]//@sk_error_queue: rarely used
+	struct proto		*sk_prot_creator; //@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,IPV6_ADDRFORM for instance) 例如，tcp_prot
+	rwlock_t		sk_callback_lock; => rwlock_init()[sock_init_data()]//@sk_callback_lock: used with the callbacks in the end of this struct
+	int			sk_err, => 0[tcp_connect_init]
+				sk_err_soft;
+	atomic_t		sk_drops; => 0[sock_init_data()]
+	unsigned short		sk_ack_backlog;
+	unsigned short		sk_max_ack_backlog;//@sk_max_ack_backlog: listen backlog set in listen()
+	__u32			sk_priority;
+	struct ucred		sk_peercred; => 0,-1,-1[sock_init_data()]
+	long			sk_rcvtimeo; => MAX_SCHEDULE_TIMEOUT[sock_init_data()]
+	long			sk_sndtimeo; => MAX_SCHEDULE_TIMEOUT[sock_init_data()]
+	struct sk_filter      	*sk_filter;
+	void			*sk_protinfo;
+	struct timer_list	sk_timer; => init_timer()[sock_init_data()] => tcp_keepalive_timer[tcp_init_xmit_timers]// @sk_timer: sock cleanup timer
+	ktime_t			sk_stamp; => ktime_set()[sock_init_data()]
+	struct socket		*sk_socket; => sk_set_socket()[sock_init_data]//@sk_socket: Identd and reporting IO signals, 反向指向 socket结构体
+	void			*sk_user_data;
+	struct page		*sk_sndmsg_page; => NULL[sock_init_data()]// @sk_sndmsg_page: cached page for sendmsg - TCP_PAGE
+	struct sk_buff		*sk_send_head; => NULL[sock_init_data()]//@sk_send_head: front of stuff to transmit
+	__u32			sk_sndmsg_off; => 0[sock_init_data()]//@sk_sndmsg_off: cached offset for sendmsg - TCP_OFF
+	int			sk_write_pending; => 0[sock_init_data()]
+#ifdef CONFIG_SECURITY
+	void			*sk_security;
+#endif
+	__u32	sk_mark;
+	void	(*sk_state_change)(struct sock *sk); => sock_def_wakeup[sock_init_data()]// @sk_state_change: callback to indicate change in the state of the sock, 例如sock_def_wakeup
+	void	(*sk_data_ready)(struct sock *sk, int bytes); => sock_def_readable[sock_init_data()]// @sk_data_ready: callback to indicate there is data to be processed   sock_def_readable
+	void	(*sk_write_space)(struct sock *sk); => sock_def_write_space[sock_init_data()] => sk_stream_write_space[tcp_v4_init_sock]// @sk_write_space: callback to indicate there is bf sending space available   sock_def_write_space
+	void	(*sk_error_report)(struct sock *sk); => sock_def_error_report[sock_init_data()]// @sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE)  sock_def_error_report
+  	int		(*sk_backlog_rcv)(struct sock *sk, struct sk_buff *skb);  => tcp_v4_do_rcv[inet_create()] // @sk_backlog_rcv: callback to process the backlog					  
+	void    (*sk_destruct)(struct sock *sk); => sock_def_destruct[sock_init_data()] => inet_sock_destruct[inet_create()] // @sk_destruct: called at sock freeing time, i.e. when all refcnt == 0   sock_def_destruct
+	__u32	sk_ethprio; /*wt-146, ethprio*/// Socket option code for IP[do_ip_setsockopt]
+}	
+
+struct inet_sock {
+	struct sock		sk; => inet_sk(sk)[inet_create()]
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	struct ipv6_pinfo	*pinet6;
+#endif
+	__be32			daddr; => daddr[tcp_v4_connect]
+	__be32			rcv_saddr; => inet->saddr[tcp_v4_connect]
+	__be16			dport; => usin->sin_port[tcp_v4_connect]
+	__u16			num;
+	__be32			saddr; => rt->rt_src[tcp_v4_connect]
+	__s16			uc_ttl; => -1[inet_create()]
+	__u16			cmsg_flags;// Socket option code for IP[do_ip_setsockopt]
+	struct ip_options	*opt;// Socket option code for IP[do_ip_setsockopt]
+	__be16			sport;
+	__u16			id; => 0[inet_create()] => tp->write_seq ^ jiffies[tcp_v4_connect]
+	__u8			tos;
+	__u8			mc_ttl; => 1[inet_create()]
+	__u8			pmtudisc; => ipv4_config.no_pmtu_disc相关[inet_create()]
+	__u8			recverr:1,
+				is_icsk:1, => 1[inet_create()]
+				freebind:1,
+				hdrincl:1,
+				mc_loop:1, => 1[inet_create()]
+				transparent:1;
+	int			mc_index; => 0[inet_create()]
+	__be32			mc_addr;
+	struct ip_mc_socklist	*mc_list; => NULL[inet_create()]
+	struct {
+		unsigned int		flags;
+		unsigned int		fragsize;
+		struct ip_options	*opt;
+		struct dst_entry	*dst;
+		int			length; /* Total length of all frames */
+		__be32			addr;
+		struct flowi		fl;
+	} cork;
+}
+
+struct inet_connection_sock {/* inet_sock has to be the first member! */
+	struct inet_sock	  icsk_inet;
+	struct request_sock_queue icsk_accept_queue;
+	struct inet_bind_bucket	  *icsk_bind_hash;
+	unsigned long		  icsk_timeout;
+ 	struct timer_list	  icsk_retransmit_timer; => tcp_write_timer[tcp_init_xmit_timers]
+ 	struct timer_list	  icsk_delack_timer; => tcp_delack_timer[tcp_init_xmit_timers]
+	__u32			  icsk_rto; => TCP_TIMEOUT_INIT[tcp_v4_init_sock]  => TCP_TIMEOUT_INIT[tcp_connect_init]
+	__u32			  icsk_pmtu_cookie; => 1500[tcp_sync_mss]
+	const struct tcp_congestion_ops *icsk_ca_ops; => tcp_init_congestion_ops[tcp_v4_init_sock]
+	const struct inet_connection_sock_af_ops *icsk_af_ops; => ipv4_specific[tcp_v4_init_sock]
+	unsigned int (*icsk_sync_mss)(struct sock *sk, u32 pmtu); => tcp_sync_mss[tcp_v4_init_sock]
+	__u8	icsk_ca_state;
+	__u8	icsk_retransmits; => 0[tcp_connect_init]
+	__u8	icsk_pending;
+	__u8	icsk_backoff;
+	__u8	icsk_syn_retries;
+	__u8	icsk_probes_out;
+	__u16	icsk_ext_hdr_len; => 0[tcp_v4_connect] // 与ip选项有关，如果设置了ip选项，则扩展头部长度会赋值
+	struct {
+		__u8		  pending;	 /* ACK is pending			   */
+		__u8		  quick;	 /* Scheduled number of quick acks	   */
+		__u8		  pingpong;	 /* The session is interactive		   */
+		__u8		  blocked;	 /* Delayed ACK was blocked by socket lock */
+		__u32		  ato;		 /* Predicted tick of soft clock	   */
+		unsigned long	  timeout;	 /* Currently scheduled timeout		   */
+		__u32		  lrcvtime;	 /* timestamp of last received data packet */
+		__u16		  last_seg_size; /* Size of last incoming segment	   */
+		__u16		  rcv_mss;	=> tcp_initialize_rcv_mss(TCP_MIN_MSS)[tcp_connect_init] /* MSS used for delayed ACK decisions	   */ 
+	} icsk_ack;
+	struct {
+		int		  enabled; => sysctl_tcp_mtu_probing > 1[tcp_mtup_init]
+		/* Range of MTUs to search */
+		int		  search_high; => [tcp_mtup_init]
+		int		  search_low; => tcp_mss_to_mtu(sk, sysctl_tcp_base_mss)[tcp_mtup_init]
+		/* Information on the current probe. */
+		int		  probe_size; => 0 > 1[tcp_mtup_init]
+	} icsk_mtup;
+	u32			  icsk_ca_priv[16];
+#define ICSK_CA_PRIV_SIZE	(16 * sizeof(u32))
+}
+
+struct tcp_sock {
+	/* inet_connection_sock has to be the first member of tcp_sock */
+	struct inet_connection_sock	inet_conn;
+	u16	tcp_header_len;	=> sizeof(struct tcphdr) + (sysctl_tcp_timestamps ? TCPOLEN_TSTAMP_ALIGNED : 0)[tcp_connect_init]/* Bytes of tcp header to send		*/
+	u16	xmit_size_goal_segs; /* Goal for segmenting output packets */
+	__be32	pred_flags;
+ 	u32	rcv_nxt; => 0[tcp_connect_init]	/* What we want to receive next 	*/
+	u32	copied_seq; => 0[tcp_connect_init]	/* Head of yet unread data		*/
+	u32	rcv_wup; => 0[tcp_connect_init]	/* rcv_nxt on last window update sent	*/
+ 	u32	snd_nxt; => tp->write_seq[tcp_connect]/* Next sequence we send		*/
+ 	u32	snd_una; => tp->write_seq[tcp_connect_init]	/* First byte we want an ack for	*/
+ 	u32	snd_sml; => tp->write_seq[tcp_connect_init]	/* Last byte of the most recently transmitted small packet */
+	u32	rcv_tstamp;	/* timestamp of last received ACK (for keepalives) */
+	u32	lsndtime;	/* timestamp of last sent data packet (for restart window) */
+	struct {
+		struct sk_buff_head	prequeue; =>skb_queue_head_init()[tcp_prequeue_init]
+		struct task_struct	*task; => NULL[tcp_prequeue_init]
+		struct iovec		*iov; => NULL[tcp_prequeue_init]
+		int			memory; => 0[tcp_prequeue_init]
+		int			len; => 0[tcp_prequeue_init]
+#ifdef CONFIG_NET_DMA
+		struct dma_chan		*dma_chan; => NULL[tcp_prequeue_init]
+		int			wakeup; => 0[tcp_prequeue_init]
+		struct dma_pinned_list	*pinned_list; => NULL[tcp_prequeue_init]
+		dma_cookie_t		dma_cookie; => 0[tcp_prequeue_init]
+#endif
+	} ucopy;
+	u32	snd_wl1; => tcp_init_wl(tp, 0)[tcp_connect_init]	/* Sequence for window update		*/
+	u32	snd_wnd; => 0[tcp_connect_init]	/* The window we expect to receive	*/
+	u32	max_window;	=> 0[tcp_connect_init]/* Maximal window ever seen from peer	*/
+	u32	mss_cache; => 536[tcp_v4_init_sock]	 => mss_now=524[tcp_sync_mss]/* Cached effective mss, not including SACKS */
+	u32	window_clamp; => dst_metric(dst, RTAX_WINDOW)/ or in initial (2**16 -1) << tp->rx_opt.rcv_wscale [tcp_connect_init]	/* Maximal window to advertise		*/
+	u32	rcv_ssthresh; => tp->rcv_wnd=4MSS[tcp_connect_init]	/* Current window clamp			*/
+	u32	frto_highmark;	/* snd_nxt when RTO occurred */
+	u16	advmss; => dst_metric(dst, RTAX_ADVMSS)1460, 如果user_mss的值设置并且小于dst_metric计算的话,就分配此值[tcp_connect_init]/* Advertised MSS			*/
+	u8	frto_counter;	/* Number of new acks after RTO */
+	u8	nonagle;	/* Disable Nagle algorithm?             */
+	u32	srtt;		/* smoothed round trip time << 3	*/
+	u32	mdev; => TCP_TIMEOUT_INIT[tcp_v4_init_sock]		/* medium deviation			*/
+	u32	mdev_max;	/* maximal mdev for the last rtt period	*/
+	u32	rttvar;		/* smoothed mdev_max			*/
+	u32	rtt_seq;	/* sequence number to update rttvar	*/
+	u32	packets_out; =>tp->packets_out += tcp_skb_pcount(buff)[tcp_connect]	/* Packets which are "in flight"	*/
+	u32	retrans_out; =>tcp_clear_retrans_partial()[tcp_connect_init]	/* Retransmitted packets out		*/
+	u16	urg_data;	/* Saved octet of OOB data and control flags */
+	u8	ecn_flags;	=> TCP_ECN_send_syn[tcp_connect]/* ECN status bits.			*/
+	u8	reordering;	=> sysctl_tcp_reordering[tcp_v4_init_sock]/* Packet reordering metric.		*/
+	u32	snd_up; => tp->write_seq[tcp_connect_init]	/* Urgent pointer		*/
+	u8	keepalive_probes; /* num of allowed keep alive probes	*/
+	struct tcp_options_received rx_opt; => tp->rx_opt.mss_clamp = 536[tcp_v4_connect]
+										=> tp->rx_opt.rcv_wscale = 2 //初始值有Min{ window_clamp, Max{sysctl_tcp_rmem[2], sysctl_rmem_max } } / 2**16 决定, 但不能超过14
+ 	u32	snd_ssthresh; => 0x7fffffff[tcp_v4_init_sock] => icsk->icsk_ca_ops->ssthresh(sk)[tcp_enter_cwr]/* Slow start size threshold		*/
+ 	u32	snd_cwnd; => 2[tcp_v4_init_sock]	/* Sending congestion window		*/
+	u32	snd_cwnd_cnt;	/* Linear increase counter*/
+	u32	snd_cwnd_clamp; => ~0[tcp_v4_init_sock]/* Do not allow snd_cwnd to grow above this */
+	u32	snd_cwnd_used;
+	u32	snd_cwnd_stamp; 
+ 	u32	rcv_wnd;	/* Current receiver window		*/
+	u32	write_seq;	=> secure_tcp_sequence_number()[tcp_v4_connect]/* Tail(+1) of data held in tcp send buffer */
+	u32	pushed_seq;	=> tp->pushed_seq = tp->write_seq[tcp_connect]/* Last pushed seq, required to talk to windows */
+	u32	lost_out; =>tcp_clear_retrans_partial()[tcp_connect_init]	/* Lost packets			*/
+	u32	sacked_out;	 => tcp_clear_retrans[tcp_connect_init]/* SACK'd packets			*/
+	u32	fackets_out; => tcp_clear_retrans[tcp_connect_init]	/* FACK'd packets			*/
+	u32	tso_deferred;
+	u32	bytes_acked; => 0[tcp_enter_cwr]	/* Appropriate Byte Counting - RFC3465 */
+	struct sk_buff* lost_skb_hint;
+	struct sk_buff *scoreboard_skb_hint;
+	struct sk_buff *retransmit_skb_hint;
+	struct sk_buff_head	out_of_order_queue; => skb_queue_head_init()[tcp_v4_init_sock]/* Out of order segments go here */
+	struct tcp_sack_block duplicate_sack[1]; /* D-SACK block */
+	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves*/
+	struct tcp_sack_block recv_sack_cache[4];
+	struct sk_buff *highest_sack;   /* highest skb with SACK received
+					 * (validity guaranteed only if
+					 * sacked_out > 0)
+					 */
+	int     lost_cnt_hint;
+	u32     retransmit_high;	/* L-bits may be on up to this seqno */
+
+	u32	lost_retrans_low;	/* Sent seq after any rxmit (lowest) */
+	u32	prior_ssthresh; => 0[tcp_enter_cwr]/* ssthresh saved at recovery start	*/
+	u32	high_seq;	/* snd_nxt at onset of congestion	*/
+	u32	retrans_stamp; => tcp_time_stamp[tcp_connect]/* Timestamp of the last retransmit,
+				 * also used in SYN-SENT to remember stamp of
+				 * the first SYN. */
+	u32	undo_marker; =>tcp_clear_retrans()[tcp_connect_init]	/* tracking retrans started here. */
+	int	undo_retrans; =>tcp_clear_retrans()[tcp_connect_init]	/* number of undoable retransmissions. */
+	u32	total_retrans;	/* Total retransmits for entire connection */
+	u32	urg_seq;	/* Seq of received urgent pointer */
+	unsigned int		keepalive_time;	  /* time before keep alive takes place */
+	unsigned int		keepalive_intvl;  /* time interval between keep alive probes */
+	unsigned long last_synq_overflow; 
+/* Receiver side RTT estimation */
+	struct {
+		u32	rtt;
+		u32	seq;
+		u32	time;
+	} rcv_rtt_est;
+/* Receiver queue space */
+	struct {
+		int	space;
+		u32	seq;
+		u32	time;
+	} rcvq_space;
+/* TCP-specific MTU probe information. */
+	struct {
+		u32		  probe_seq_start;
+		u32		  probe_seq_end;
+	} mtu_probe;
+#ifdef CONFIG_TCP_MD5SIG
+/* TCP AF-Specific parts; only used by MD5 Signature support so far */
+	struct tcp_sock_af_ops	*af_specific; => tcp_sock_ipv4_specific[tcp_v4_init_sock]
+/* TCP MD5 Signagure Option information */
+	struct tcp_md5sig_info	*md5sig_info;
+#endif
+	int			linger2;
+}
+
+struct tcp_skb_cb {
+	union {
+		struct inet_skb_parm	h4;
+#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
+		struct inet6_skb_parm	h6;
+#endif
+	} header;	/* For incoming frames		*/
+	__u32		seq;		/* Starting sequence number	*/
+	__u32		end_seq;	/* SEQ + FIN + SYN + datalen	*/
+	__u32		when;		/* used to compute rtt's	*/
+	__u8		flags;		/* TCP header flags.		*/
+/* NOTE: These must match up to the flags byte in a real TCP header. */
+#define TCPCB_FLAG_FIN		0x01
+#define TCPCB_FLAG_SYN		0x02
+#define TCPCB_FLAG_RST		0x04
+#define TCPCB_FLAG_PSH		0x08
+#define TCPCB_FLAG_ACK		0x10
+#define TCPCB_FLAG_URG		0x20
+#define TCPCB_FLAG_ECE		0x40
+#define TCPCB_FLAG_CWR		0x80
+	__u8		sacked;		/* State flags for SACK/FACK.	*/
+#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
+#define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		*/
+#define TCPCB_LOST		0x04	/* SKB is lost			*/
+#define TCPCB_TAGBITS		0x07	/* All tag bits			*/
+#define TCPCB_EVER_RETRANS	0x80	/* Ever retransmitted frame	*/
+#define TCPCB_RETRANS		(TCPCB_SACKED_RETRANS|TCPCB_EVER_RETRANS)
+	__u32		ack_seq;	/* Sequence number ACK'd	*/
+}
+
+struct sk_buff
+{
+    struct sk_buff      *next;
+    struct sk_buff      *prev;
+    struct sock     *sk;
+    ktime_t         tstamp;
+    struct net_device   *dev;
+    union
+    {
+        struct  dst_entry   *dst;
+        struct  rtable      *rtable;
+    };
+#ifdef CONFIG_XFRM
+    struct  sec_path    *sp;
+#endif
+    char            cb[48]; => tcp_skb_cb // 对于tcp控制来说
+#if defined(CONFIG_IMQ) || defined(CONFIG_IMQ_MODULE)
+    void            *cb_next;
+#endif
+    /*This field is only needed by RTL8190 Driver.FIX ME!!!*/
+    unsigned char   __unused;
+    unsigned int        len, => 40[tcp_transmit_skb->skb_push]// 报头+数据
+             data_len; // 数据
+    __u16           mac_len,
+                    hdr_len;
+    union
+    {
+        __wsum      csum;
+        struct
+        {
+            __u16   csum_start;
+            __u16   csum_offset;
+        };
+    };
+    __u32           priority;
+    __u8            local_df:1,
+                    cloned:1,
+                    ip_summed:2,
+                    nohdr:1,
+                    nfctinfo:3;
+    __u8            pkt_type:3,
+                    fclone:2, => SKB_FCLONE_ORIG[__alloc_skb]
+                    ipvs_property:1,
+                    peeked:1,
+                    nf_trace:1;
+    __be16          protocol;
+    void            (*destructor)(struct sk_buff *skb);
+#if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+    struct nf_conntrack *nfct;
+    struct sk_buff      *nfct_reasm;
+#endif
+#if defined(CONFIG_IMQ) || defined(CONFIG_IMQ_MODULE)
+    struct nf_queue_entry   *nf_queue_entry;
+#endif
+#ifdef CONFIG_BRIDGE_NETFILTER
+    struct nf_bridge_info   *nf_bridge;
+#endif
+    int         iif;
+    __u16           queue_mapping;
+#ifdef CONFIG_NET_SCHED
+    __u16           tc_index;   /* traffic control index */
+#ifdef CONFIG_NET_CLS_ACT
+    __u16           tc_verd;    /* traffic control verdict */
+#endif
+#endif
+#ifdef CONFIG_IPV6_NDISC_NODETYPE
+    __u8            ndisc_nodetype:2;
+#endif
+#if defined(CONFIG_MAC80211) || defined(CONFIG_MAC80211_MODULE)
+    __u8            do_not_encrypt:1;
+    __u8            requeue:1;
+#endif
+    /* 0/13/14 bit hole */
+#if defined(CONFIG_IMQ) || defined(CONFIG_IMQ_MODULE)
+__u8            imq_flags:
+    IMQ_F_BITS;
+#endif
+
+#ifdef CONFIG_NET_DMA
+    dma_cookie_t        dma_cookie;
+#endif
+#ifdef CONFIG_NETWORK_SECMARK
+    __u32           secmark;
+#endif
+    /* #if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) */
+    __u8            srcPhyPort; =>0xFF[__alloc_skb]    // 0~4
+    __u8            dstPhyPort; =>0xFF[__alloc_skb]    // 0~4
+    /* #endif */
+#if defined (CONFIG_RTL_LOCAL_PUBLIC)
+    __u32 srcLocalPublicIp;
+    __u8 fromLocalPublic;
+    __u8 toLocalPublic;
+    __u8 localPublicFlags;
+#endif
+#if defined(CONFIG_RTL_8676HWNAT) && defined(CONFIG_RTL8676_Static_ACL)
+    //Kevin
+    __u8 acl_forward_to_extPort;
+#endif
+    __u32           mark;
+    __u16           vlan_tci;
+    sk_buff_data_t      transport_header; => [tcp_transmit_skb]
+    sk_buff_data_t      network_header;
+    sk_buff_data_t      mac_header;
+    /*linux-2.6.19*/
+#ifdef CONFIG_PPPOE_PROXY
+    __u32 fw_mark;
+#endif
+#ifdef CONFIG_PPPOE_PROXY_FASTPATH
+    int                      islanPPP;
+#endif
+    int                      isVlanPack;
+#ifdef CONFIG_PPPOE_PROXY
+    char                      source_port;
+#endif
+    char                      fastbr;
+//shlee 2.6
+    //char          switch_port[10];    /* Mason Yu. Switch Port Name for QOS */
+    char            *switch_port;       /* Mason Yu. Switch Port Name for QOS */
+#ifdef CONFIG_NEW_PORTMAPPING
+//0x0001 which mean bit_0 == 1 ==> skb can be transmitted to lanport0
+    uint16_t        fgroup;
+#endif
+    enum src_port_t     src_port;           /* hrchen, for dev alloc skb number control */
+    __u32           vlan_member;        /* Kaohj, port-based vlan membership for this packet */
+    __u32           vlan_passthrough;   /*tylo, vlan pass-through*/
+    struct net_device   *from_dev;      /* Device we arrived on */
+    __u32           pvid;           /* port vlan index */
+
+    //tylo, packet processor
+    unsigned char ppphdr[20];
+//#if defined(CONFIG_USB_RTL8192SU_SOFTAP) || defined(CONFIG_SKB_POOL_PREALLOC)
+    unsigned int fcpu;
+    unsigned int *pptx;
+//#endif
+#if defined(CONFIG_RTL_ETH_PRIV_SKB_ADV)
+    /* callback to return skb or data back to preallocated memory pool.
+     */
+    void            (*prealloc_cb)(struct sk_buff *, unsigned);
+    /* prealloc_next is a pointer to list the preallocated skb.
+     */
+    void            *prealloc_next;
+    unsigned int    prealloc_flags;
+#endif//end of CONFIG_RTL_ETH_PRIV_SKB_ADV
+
+    /* These elements must be at the end, see alloc_skb() for details.  */
+    sk_buff_data_t      tail; => [__alloc_skb]
+    sk_buff_data_t      end; => [__alloc_skb]
+    unsigned char       *head, => [__alloc_skb]
+						*data; => [__alloc_skb]
+    unsigned int        truesize; => 512(tcp)[__alloc_skb]
+    atomic_t        users; => 1[__alloc_skb]
+}
+
+struct skb_shared_info
+{
+    atomic_t    dataref;
+    unsigned short  nr_frags;
+    unsigned short  gso_size;
+    /* Warning: this field is not always filled in (UFO)! */
+    unsigned short  gso_segs;
+    unsigned short  gso_type;
+    __be32          ip6_frag_id;
+    union skb_shared_tx tx_flags;
+#if defined(CONFIG_HAS_DMA) && !defined(CONFIG_RTL8672)
+    unsigned int    num_dma_maps;
+#endif
+    struct sk_buff  *frag_list;
+    struct skb_shared_hwtstamps hwtstamps;
+    skb_frag_t  frags[MAX_SKB_FRAGS];
+#if defined(CONFIG_HAS_DMA) && !defined(CONFIG_RTL8672)
+    dma_addr_t  dma_maps[MAX_SKB_FRAGS + 1];
+#endif
+}
+
+struct tcp_skb_cb { // 属于skb的一部分
+	union {
+		struct inet_skb_parm	h4;
+#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
+		struct inet6_skb_parm	h6;
+#endif
+	} header;	/* For incoming frames		*/
+	__u32		seq; => seq[tcp_init_nondata_skb]	/* Starting sequence number	*/
+	__u32		end_seq; => seq[tcp_init_nondata_skb]	/* SEQ + FIN + SYN + datalen	*/
+	__u32		when; => tcp_time_stamp[tcp_connect]	/* used to compute rtt's	*/
+	__u8		flags;	=> TCPCB_FLAG_ECE | TCPCB_FLAG_CWR[TCP_ECN_send_syn]	/* TCP header flags.		*/
+
+	/* NOTE: These must match up to the flags byte in a
+	 *       real TCP header.
+	 */
+#define TCPCB_FLAG_FIN		0x01
+#define TCPCB_FLAG_SYN		0x02
+#define TCPCB_FLAG_RST		0x04
+#define TCPCB_FLAG_PSH		0x08
+#define TCPCB_FLAG_ACK		0x10
+#define TCPCB_FLAG_URG		0x20
+#define TCPCB_FLAG_ECE		0x40
+#define TCPCB_FLAG_CWR		0x80
+
+	__u8		sacked;	=> 0[tcp_init_nondata_skb]	/* State flags for SACK/FACK.	*/
+#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
+#define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		*/
+#define TCPCB_LOST		0x04	/* SKB is lost			*/
+#define TCPCB_TAGBITS		0x07	/* All tag bits			*/
+
+#define TCPCB_EVER_RETRANS	0x80	/* Ever retransmitted frame	*/
+#define TCPCB_RETRANS		(TCPCB_SACKED_RETRANS|TCPCB_EVER_RETRANS)
+
+	__u32		ack_seq;	/* Sequence number ACK'd	*/
+}
+
+
+
+==============================================
+struct percpu_counter tcp_sockets_allocated //Current number of TCP sockets.
+struct percpu_counter tcp_orphan_count // 
+
+
+
+
+调用tcp_transmit_skb函数列表
+=> tcp_mtu_probe
+=> tcp_write_xmit
+	=> tcp_push_one
+		=> tcp_sendmsg
+		=> do_tcp_sendpages
+			=> tcp_sendpage
+	=> __tcp_push_pending_frames
+		=> tcp_push
+			=> tcp_sendmsg
+			=> do_tcp_sendpages
+				=> tcp_sendpage
+		=> do_tcp_sendpages
+		=> tcp_sendmsg
+		=> tcp_send_fin
+=> tcp_retransmit_skb
+=> tcp_send_active_reset
+=> tcp_send_synack
+=> tcp_connect
+=> tcp_send_ack
+=> tcp_xmit_probe_skb
+=> tcp_write_wakeup
+
+
+

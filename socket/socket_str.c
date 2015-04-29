@@ -340,3 +340,74 @@ struct tcp_sock {
 	struct tcp_md5sig_info	*md5sig_info;
 #endif
 }
+
+// TCP的定时器   tcp_init_xmit_timers
+1. 连接建立   75s							由重传合并
+2. 重传		  由往返时间和已重传次数决定	inet_csk_init_xmit_timers
+3. 延迟ACK	  200ms							inet_csk_init_xmit_timers
+4. persist定时器(0窗口通告)
+5. keepAlive定时器   2hour   				inet_csk_init_xmit_timers
+6. FIN_WAIT_2定时器  10min + 75s
+7. TIME_WAIT定时器   2MSL
+
+
+
+TCP与IP函数接口点
+connect:
+	struct dst_entry 
+	ip_route_connect 确定目的地址是否可达
+	ip_rt_put  清除路由选项
+	rt_get_peer  tcp_v4_connect时候查找
+	ip_route_newports 查找完sport后重新刷新路由选项
+	dst_metric   获得mtu等信息
+	
+
+	inet_csk_route_req
+	ip_build_and_send_pkt
+	
+	
+各种结构包含
+tcp_sock
+	=>inet_connection_sock
+		=> inet_sock
+			=> sock
+			
+			
+
+space的确定
+sysctl_tcp_adv_win_scale <= 0
+	space = sk_rcvbuf/2^|sysctl_tcp_adv_win_scale|
+sysctl_tcp_adv_win_scale > 0
+	space = sk_rcvbuf - sk_rcvbuf / 2^sysctl_tcp_adv_win_scale
+	
+space = (space / mss) * mss
+
+sysctl_tcp_window_scaling > 0 // enable window scale
+	rcv_wscale=log2(max(sysctl_tcp_rmem[2],sysctl_rmem_max))
+	rcv_wscale ~ [0,14)
+sysctl_tcp_window_scaling = 0
+	rcv_wscale = 0
+	
+tp->window_clamp = 65535 * 2^rcv_wscale => [65535, 1G)
+
+rcv_wnd的确定
+与mss、rcv_wscale、space共同决定
+if (mss > (1 << *rcv_wscale)) 
+{// 1 << *rcv_wscale [0, 8192]
+		int init_cwnd = 4;
+		if (mss > 1460 * 3)
+			init_cwnd = 2;
+		else if (mss > 1460)
+			init_cwnd = 3;
+		if (*rcv_wnd > init_cwnd * mss)
+			*rcv_wnd = init_cwnd * mss;
+		else
+			*rcv_wnd = space;
+}
+else
+	rcv_wnd = space // 可见此时rcv_wscale比较大 已经接近11->14
+			
+tp->rx_opt.rcv_wscale = rcv_wscale;
+tp->rcv_wnd = rcv_wnd;
+tp->window_clamp=window_clamp;
+tp->rcv_ssthresh = tp->rcv_wnd;
