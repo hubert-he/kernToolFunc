@@ -361,7 +361,7 @@ connect:
 	ip_route_newports 查找完sport后重新刷新路由选项
 	dst_metric   获得mtu等信息
 	
-
+	sk_setup_caps
 	inet_csk_route_req
 	ip_build_and_send_pkt
 	

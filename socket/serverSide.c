@@ -74,4 +74,5 @@ ACK: 992bb6a8:76738eb4
 								
 								
 								
-tcp_prequeue  wake_up_interruptible								
+tcp_prequeue  wake_up_interruptible		
+tcp_sendmsg sk_stream_wait_connect						

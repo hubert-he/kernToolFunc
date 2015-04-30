@@ -249,7 +249,7 @@ struct tcp_sock {
 	/* inet_connection_sock has to be the first member of tcp_sock */
 	struct inet_connection_sock	inet_conn;
 	u16	tcp_header_len;	=> sizeof(struct tcphdr) + (sysctl_tcp_timestamps ? TCPOLEN_TSTAMP_ALIGNED : 0)[tcp_connect_init]/* Bytes of tcp header to send		*/
-	u16	xmit_size_goal_segs; /* Goal for segmenting output packets */
+	u16	xmit_size_goal_segs;// 22[tcp_xmit_size_goal] 第一次send的时候赋值，表示22个MSS单位是段 /* Goal for segmenting output packets */
 	__be32	pred_flags;
  	u32	rcv_nxt; => 0[tcp_connect_init]	/* What we want to receive next 	*/
 	u32	copied_seq; => 0[tcp_connect_init]	/* Head of yet unread data		*/
