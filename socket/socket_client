@@ -149,8 +149,8 @@ struct sock {
 	struct socket		*sk_socket; => sk_set_socket()[sock_init_data]//@sk_socket: Identd and reporting IO signals, 反向指向 socket结构体
 	void			*sk_user_data;
 	struct page		*sk_sndmsg_page; => NULL[sock_init_data()]// @sk_sndmsg_page: cached page for sendmsg - TCP_PAGE
-	struct sk_buff		*sk_send_head; => NULL[sock_init_data()]//@sk_send_head: front of stuff to transmit
-	__u32			sk_sndmsg_off; => 0[sock_init_data()]//@sk_sndmsg_off: cached offset for sendmsg - TCP_OFF
+	struct sk_buff		*sk_send_head; => NULL[sock_init_data()]//@sk_send_head: front of stuff to transmit  tcp_sendmsg函数中应用 始终指向skb中新添加的page
+	__u32			sk_sndmsg_off; => 0[sock_init_data()]//@sk_sndmsg_off: cached offset for sendmsg - TCP_OFF tcp_sendmsg函数中应用
 	int			sk_write_pending; => 0[sock_init_data()]
 #ifdef CONFIG_SECURITY
 	void			*sk_security;

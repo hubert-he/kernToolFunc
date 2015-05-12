@@ -350,7 +350,26 @@ struct tcp_sock {
 6. FIN_WAIT_2定时器  10min + 75s
 7. TIME_WAIT定时器   2MSL
 
-
+register_netdevice:5418 =>  lo:dev->fertures=0x13065 NETIF_F_TSO|NETIF_F_NETNS_LOCAL|NETIF_F_LLTX|NETIF_F_FRAGLIST|NETIF_F_HIGHDMA|NETIF_F_NO_CSUM|NETIF_F_SG
+register_netdevice:5418 =>  imq0:dev->fertures=0x869
+register_netdevice:5418 =>  imq1:dev->fertures=0x869
+register_netdevice:5418 =>  eth0.2:dev->fertures=0x0
+register_netdevice:5418 =>  eth0.3:dev->fertures=0x0
+register_netdevice:5418 =>  eth0.4:dev->fertures=0x0
+register_netdevice:5418 =>  eth0.5:dev->fertures=0x0
+register_netdevice:5418 =>  sit0:dev->fertures=0x2000
+register_netdevice:5418 =>  ip6tnl0:dev->fertures=0x2000
+register_netdevice:5418 =>  br0:dev->fertures=0xff3865 NETIF_F_GSO_MASK | NETIF_F_NETNS_LOCAL | NETIF_F_GSO | NETIF_F_LLTX | NETIF_F_FRAGLIST | NETIF_F_HIGHDMA | NETIF_F_NO_CSUM | NETIF_F_SG
+register_netdevice:5418 =>  ppp0:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp1:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp2:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp3:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp4:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp5:dev->fertures=0x2000
+register_netdevice:5418 =>  vc0:dev->fertures=0x0
+register_netdevice:5418 =>  ppp6:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp7:dev->fertures=0x2000
+register_netdevice:5418 =>  ppp8:dev->fertures=0x2000
 
 TCP与IP函数接口点
 connect:
@@ -364,7 +383,7 @@ connect:
 	sk_setup_caps
 	inet_csk_route_req
 	ip_build_and_send_pkt
-	
+	icsk->icsk_af_ops->queue_xmit【ip_queue_xmit】
 	
 各种结构包含
 tcp_sock
