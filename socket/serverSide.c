@@ -43,7 +43,7 @@ ACK: 992bb6a8:76738eb4
 										=> inet_csk_search_req // 查找是否已经在半连接队列icsk->icsk_accept_queue.listen_opt
 									=> tcp_check_req // defer_accept 在此处返回NULL
 										=> tcp_v4_syn_recv_sock
-											=> tcp_create_openreq_child // 派生出新的sock并赋值，继承request_sock
+											=> tcp_create_openreq_child // 派生出新的sock并赋值，继承request_sock, 初始化滑动窗口等
 											=> __inet_hash_nolisten // hashinfo->ehash,添加到established
 											=> __inet_inherit_port // icsk_bind_hash & hashinfo->bhash数组
 										=> inet_csk_reqsk_queue_unlink // 从icsk_accept_queue.listen_opt摘下
