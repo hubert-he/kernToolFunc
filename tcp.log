@@ -1,0 +1,33 @@
+tcp_store_ts_recent  //收到报文后更新recent时间戳函数
+tcp_replace_ts_recent //tcp slow path情况下(即tcp非正常包顺序接收)对recent时间戳的更新函数
+
+recv情况：
+(1) 收到SYN报文
+	tcp_rcv_synsent_state_process
+		=> tcp_set_state(sk, TCP_SYN_RECV);
+		=> tcp_store_ts_recent(tp);
+(2) 收到SYN_ACK 报文
+	tcp_rcv_synsent_state_process
+		=> tcp_store_ts_recent(tp);
+		=> tcp_set_state(sk, TCP_ESTABLISHED);
+(3) 收到对SYN_ACK ACK报文
+	tcp_rcv_state_process
+		=> res = tcp_validate_incoming(sk, skb, th, 0);
+			=> tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq);
+				=> tcp_store_ts_recent(tp);
+(4) 收到正常顺序的ACK报文
+(5) 收到正常顺序的DATA报文
+	tcp_rcv_established
+		=> tcp_store_ts_recent(tp);
+(6) 收到异常顺序的DATA报文
+(7) 收到异常顺序的ACK报文
+	tcp_rcv_established
+		=> res = tcp_validate_incoming(sk, skb, th, 1);
+			=> tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq);
+				=> tcp_store_ts_recent(tp);
+(8) 收到ACK for FIN
+	tcp_rcv_state_process
+		=> res = tcp_validate_incoming(sk, skb, th, 0);
+			=> tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq);
+				=> tcp_store_ts_recent(tp);
+
