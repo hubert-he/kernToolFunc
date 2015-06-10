@@ -1,5 +1,0 @@
-dev_queue_xmit
-	=> qdisc_run
-		=> __qdisc_run
-  re865x_start_xmit
-br0

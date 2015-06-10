@@ -140,4 +140,55 @@ Padding			:	tcp_options_write
 tcb->seq: 是待发送skb的sequence Number
 tp->write_seq: tcb_seq+1
 tp->snd_up: 非含OutBand Data， snd_up 保持与第一个tcp 数据报文seqence Number不变
-					
+
+
+
+
+
+
+
+
+select:(select.c/fs)
+	=> core_sys_select
+		=> do_select
+			=> poll_initwait
+				=>  init_poll_funcptr(&pwq->pt, __pollwait);
+			=> sock_poll()[mask = (*f_op->poll)(file, retval ? NULL : wait);] // this here
+				=> tcp_poll()
+					=> poll_wait
+						=> __pollwait()[p->qproc(filp, wait_address, p);] // 由poll_initwait初始化的回调函数
+							=> init_waitqueue_func_entry(&entry->wait, pollwake);  // note: pollwake
+							=> sk->sk_sleep <-- entry->wait // 将wait结构体挂接到sk_sleep
+	=> poll_select_copy_remaining
+	
+	
+	=> __pollwait
+				
+sock_init_data()
+{	
+	sk->sk_state_change =   sock_def_wakeup;
+    sk->sk_data_ready   =   sock_def_readable;
+    sk->sk_write_space  =   sock_def_write_space;
+    sk->sk_error_report =   sock_def_error_report;
+    sk->sk_destruct     =   sock_def_destruct;
+}
+tcp_rcv_established()
+	=> sk->sk_data_ready(sk, 0) <== sock_def_readable
+		=> sock_def_readable
+			=> wake_up_interruptible_sync_poll
+				=> __wake_up_sync_key
+					=> __wake_up_common
+
+	
+release_sock
+	=> if (waitqueue_active(&sk->sk_lock.wq))
+        wake_up(&sk->sk_lock.wq);
+		=> __wake_up
+			=> __wake_up_common
+				=> for task_list do curr->func() <== callback function
+					=> pollwake // 一般是pollwake/ autoremove_wake_function  / default_wake_function
+						=> default_wake_function
+							=> try_to_wake_up
+	
+	
+	
