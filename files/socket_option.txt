@@ -1,0 +1,111 @@
+http://man7.org/linux/man-pages/man7/socket.7.html
+1. SO_BINDTODEVICE: 
+	sk->sk_bound_dev_if 对应的是struct net_device中的ifindex
+	setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, "eth0", sizeof("eth0"))
+2. SO_DEBUG
+	sk->sk_flags |= SOCK_DBG
+	int val;
+	setsockopt(fd, SOL_SOCKET, SO_DEBUG, &val, sizeof(int))
+3. SO_REUSEADDR
+	sk->sk_reuse
+4. SO_TYPE
+	只能getsockopt 
+5. SO_ERROR
+	Get and clear the pending socket error.
+	只能getsockopt 
+6. SO_DONTROUTE
+	Don't send via a gateway, send only to directly connected hosts.
+	sk->sk_flags |= SOCK_LOCALROUTE
+7. SO_BROADCAST
+	sk->sk_flags |= SOCK_BROADCAST
+8. SO_SNDBUF
+	int
+	sk->sk_sndbuf
+	sk->sk_write_space: 唤醒进程通知有更多的send缓冲区
+	SOCK_MIN_SNDBUF < sk->sk_sndbuf <　sysctl_wmem_max
+9. SO_SNDBUFFORCE [since Linux 2.6.14]
+	int
+	CAP_NET_ADMIN
+	sk->sk_sndbuf
+	sk->sk_write_space: 唤醒进程通知有更多的send缓冲区
+	SOCK_MIN_SNDBUF < sk->sk_sndbuf : 无上限值
+10. SO_RCVBUF
+	int
+	sk->sk_rcvbuf
+	SOCK_MIN_RCVBUF <　sk->sk_rcvbuf <　sysctl_rmem_max
+11. SO_RCVBUFFORCE
+	CAP_NET_ADMIN
+	int
+	sk->sk_rcvbuf
+	SOCK_MIN_RCVBUF <　sk->sk_rcvbuf : 无上限值
+12. SO_KEEPALIVE
+	bool int
+	sk->sk_flags |= SOCK_KEEPOPEN
+	TCP: sk->sk_timer  tp->keepalive_time[sysctl_tcp_keepalive_time]
+13. SO_OOBINLINE
+	bool int
+	sk->sk_flags |= SOCK_URGINLINE
+	If this option is enabled, out-of-band data is directly placed
+    into the receive data stream.  Otherwise, out-of-band data is
+    passed only when the MSG_OOB flag is set during receiving.
+14. SO_NO_CHECK
+	bool int
+	sk->sk_no_check
+15. SO_PRIORITY
+	int
+	sk->sk_priority
+	Set the protocol-defined priority for all packets to be sent
+    on this socket.  Linux uses this value to order the networking
+    queues: packets with a higher priority may be processed first
+    depending on the selected device queueing discipline.  Setting
+    a priority outside the range 0 to 6 requires the CAP_NET_ADMIN
+    capability.
+16. SO_LINGER
+	struct linger{ int l_onoff;    /* linger active */ 
+                   int l_linger;   /* how many seconds to linger for */
+                 };
+	sk->sk_flags |= SOCK_LINGER
+	sk->sk_lingertime < MAX_SCHEDULE_TIMEOUT
+17. SO_BSDCOMPAT
+	废弃，使用此选项，kernel打印warnning信息
+18. SO_PASSCRED
+	bool int
+	sk->sk_flags |= SOCK_PASSCRED
+	未知
+19. SO_TIMESTAMP
+	bool int 
+	sk->sk_flags |= !SOCK_RCVTSTAMPNS
+	sk->sk_flags |= SOCK_RCVTSTAMP
+	sk->sk_flags |= SOCK_TIMESTAMP
+20. SO_TIMESTAMPNS
+	bool int 
+	sk->sk_flags |= SOCK_RCVTSTAMPNS
+	sk->sk_flags |= SOCK_RCVTSTAMP
+	sk->sk_flags |= SOCK_TIMESTAMP
+21. SO_TIMESTAMPING
+22. SO_RCVLOWAT / SO_SNDLOWAT
+	int
+	sk->sk_rcvlowat
+23. SO_RCVTIMEO
+	struct timeval
+	sk->sk_rcvtimeo
+24. SO_SNDTIMEO
+	struct timeval
+	sk->sk_sndtimeo
+25. SO_ATTACH_FILTER
+26. SO_DETACH_FILTER
+	suggest libpcap
+27. SO_PASSSEC
+	bool int
+	sock->flags |= SOCK_PASSSEC
+	未知
+28. SO_MARK [since Linux 2.6.25]
+	CAP_NET_ADMIN
+	int
+	sk->sk_mark
+	Set the mark for each packet sent through this socket (similar
+    to the netfilter MARK target but socket-based).  Changing the
+    mark can be used for mark-based routing without netfilter or
+    for packet filtering.
+29. SO_PEEK_OFF [since Linux 3.4]
+
