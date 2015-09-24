@@ -1,4 +1,5 @@
 http://man7.org/linux/man-pages/man7/socket.7.html
+https://access.redhat.com/documentation/zh-CN/Red_Hat_Enterprise_Linux/7/html/Performance_Tuning_Guide/sect-Red_Hat_Enterprise_Linux-Performance_Tuning_Guide-Networking-Configuration_tools.html
 1. SO_BINDTODEVICE: 
 	sk->sk_bound_dev_if 对应的是struct net_device中的ifindex
 	setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, "eth0", sizeof("eth0"))
@@ -188,7 +189,17 @@ http://man7.org/linux/man-pages/man7/socket.7.html
               While busy polling may improve latency of some applications,
               care must be taken when using it since this will increase both
               CPU utilization and power usage.
-
+繁忙轮询有助于减少网络接收路径中的延迟， 使 socket 层代码查询网络设备的接收队列并禁用网络中断，这可以消除由于中断和由此产生的环境切换所造成的延误。但是，它会增加 CPU 的使用率。繁忙轮询可以防止 CPU 进入睡眠状态，睡眠状态会造成额外的功耗。
+繁忙轮询是默认禁用的。要在特定 socket 中启用繁忙轮询，请按以下指示：
+将 sysctl.net.core.busy_poll 设置为除 0 以外的值。这一参数控制的是 socket 轮询和选择位于等待设备队列中数据包的微秒数。红帽推荐值为 50。
+添加 SO_BUSY_POLL socket 选项至 socket。
+要全局启用繁忙轮询， 须将 sysctl.net.core.busy_read 设置为除了 0 以外的值。这一参数控制了socket 读取位于等待设备队列中数据包的微秒数，且设置了 SO_BUSY_POLL 选项的默认值。红帽推荐在 socket 数量少时将值设置为 50 ， socket 数量多时将值设置为 100。对于 socket 数量极大时（超过几百），请使用 epoll。
+繁忙轮询由以下驱动程序支持。红帽企业版 Linux 7 支持这些驱动程序。
+bnx2x
+be2net
+ixgbe
+mlx4
+myri10ge
 
 ===
 /proc interfaces
