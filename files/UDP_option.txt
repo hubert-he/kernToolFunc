@@ -1,0 +1,15 @@
+struct sock *sk;
+struct udp_sock *up = udp_sk(sk);
+1. UDP_CORK
+	bool int
+	up->corkflag
+2. UDPLITE_SEND_CSCOV
+3. UDPLITE_RECV_CSCOV
+	int [8, USHORT_MAX]
+	up->pcslen
+	up->pcflag |= UDPLITE_SEND_CC
+	note: UDPLite, ±¨ÎÄchecksum¸²¸ÇµÄ·¶Î§
+4. UDP_ENCAP
+	int
+	up->encap_rcv[draft-ietf-ipsec-nat-t-ike-00/01, draft-ietf-ipsec-udp-encaps-06]
+	up->encap_type[rfc2661]

@@ -1,0 +1,104 @@
+struct sock *sk;
+struct inet_connection_sock *icsk = inet_csk(sk);
+struct tcp_sock *tp = tcp_sk(sk);
+1. TCP_CONGESTION[since Linux 2.6.13]
+	CAP_NET_ADMIN
+	char *
+	icsk->icsk_ca_ops  对应的是选取的拥塞控制算法
+	setsockopt(sock, IPPROTO_TCP, TCP_CONGESTION, "westwood", sizeof("westwood"))
+	// optname 最大15字节 <= TCP_CA_NAME_MAX[16]
+	// tcp_register_congestion_control 注册一个拥塞控制算法
+2. TCP_MAXSEG
+	int
+	tp->rx_opt.user_mss
+	有效范围(8, MAX_TCP_WINDOW(32767))
+3. TCP_NODELAY
+	bool int
+	tp->nonagle[CP_NAGLE_OFF|TCP_NAGLE_PUSH]
+	note: This option is overridden by
+            TCP_CORK; however, setting this option forces an explicit
+            flush of pending output, even if TCP_CORK is currently set.
+4. TCP_CORK[since Linux 2.2] <LINUX专用
+	bool int
+	tp->nonagle[TCP_NAGLE_CORK|TCP_NAGLE_PUSH]
+	note: there is a 200 millisecond ceiling on the time for which output is corked by TCP_CORK
+	This option can be combined with TCP_NODELAY only since Linux 2.5.71
+5. TCP_KEEPIDLE[since Linux 2.4] <LINUX专用
+	int
+	tp->keepalive_time
+	有效范围(1, MAX_TCP_KEEPIDLE(32767))
+	init: sysctl_tcp_keepalive_time / HZ
+	note: The time (in seconds) the connection needs to remain idle
+              before TCP starts sending keepalive probes, if the socket
+              option SO_KEEPALIVE has been set on this socket. 
+6. TCP_KEEPINTVL[since Linux 2.4] <LINUX专用
+	int
+	tp->keepalive_intvl
+	有效范围(1, MAX_TCP_KEEPINTVL(32767))
+	init: sysctl_tcp_keepalive_intvl) / HZ
+7. TCP_KEEPCNT [since Linux 2.4] <LINUX专用
+	int
+	tp->keepalive_probes
+	有效范围(1, MAX_TCP_KEEPCNT(127))
+	init: sysctl_tcp_keepalive_probes
+	note: The maximum number of keepalive probes TCP should send before dropping the connection.
+8. TCP_SYNCNT [since Linux 2.4] <LINUX专用
+	int
+	icsk->icsk_syn_retries
+	有效范围(1, MAX_TCP_SYNCNT(127))
+	note:Set the number of SYN retransmits that TCP should send before
+              aborting the attempt to connect.
+9. TCP_LINGER2 [since Linux 2.4] <LINUX专用
+	int
+	tp->linger2  sysctl_tcp_fin_timeout
+	init: sysctl_tcp_fin_timeout) / HZ
+	note:
+	The lifetime of orphaned FIN_WAIT2 state sockets.
+	This option can be used to override the system-wide setting in the file
+    /proc/sys/net/ipv4/tcp_fin_timeout for this socket.  This is
+    not to be confused with the socket(7) level option SO_LINGER.
+10. TCP_DEFER_ACCEPT [since Linux 2.4] <LINUX专用
+	int (seconds)
+	icsk->icsk_accept_queue.rskq_defer_accept
+	note: Allow a listener to be awakened only when data arrives on the
+              socket.  Takes an integer value (seconds), this can bound the
+              maximum number of attempts TCP will make to complete the
+              connection. 
+11. TCP_WINDOW_CLAMP [since Linux 2.4] <LINUX专用
+	int
+	tp->window_clamp
+	有效范围(0, SOCK_MIN_RCVBUF / 2)
+	note: Bound the size of the advertised window to this value.  The
+              kernel imposes a minimum size of SOCK_MIN_RCVBUF/2.
+12. TCP_QUICKACK [since Linux 2.4] <LINUX专用
+	bool int  < == 待定
+	icsk->icsk_ack.pingpong
+	icsk->icsk_ack.pending
+	note:
+	In quickack mode, acks are sent immediately, rather
+              than delayed if needed in accordance to normal TCP operation.
+              This flag is not permanent, it only enables a switch to or
+              from quickack mode.  Subsequent operation of the TCP protocol
+              will once again enter/leave quickack mode depending on
+              internal protocol processing and factors such as delayed ack
+              timeouts occurring and data transfer. 
+13. TCP_USER_TIMEOUT since Linux 2.6.37
+14. TCP_INFO [since Linux 2.4] 
+	struct tcp_info
+	tcp_get_info()
+	ReadOnly
+15.
+16.
+
+
+
+
+
+
+
+
+
+
+
+
+
